@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/Calculator" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
