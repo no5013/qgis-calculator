@@ -39,7 +39,7 @@ def calculate_rsrp(lat_ant, long_ant, height_ant, freq, lat_p, long_p):
     lu = 46.3+(33.9*math.log10(freq))-13.82*math.log10(height_ant)+((44.9-6.55*math.log10(1))*math.log10(distance))
     pl = lu-ah
     rsrp = 18.228787 - pl
-    return distance
+    return rsrp
 
 def distance_between_point(lat_ant,long_ant,lat_p,long_p):
     a = math.pow(math.sin(math.fabs(lat_p-lat_ant)*math.pi/180/2),2)+math.cos(lat_ant*math.pi/180)*math.cos(lat_p*math.pi/180)*math.pow(math.sin(math.fabs(long_p-long_ant)*math.pi/180/2),2)
@@ -66,7 +66,8 @@ for row in reader:
         pci_id = get_max_pci(row)
         if(pci_id != False):
             antenna = find_antenna(headers[pci_id], float(row[4]), float(row[3]), antenna_data)
-            print(row)
+            # print(row)
+            # print(antenna)
             rsrp = calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]))
             print(rsrp)
     index+=1

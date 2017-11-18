@@ -22,7 +22,7 @@
 """
 from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QFileInfo, QVariant
 from PyQt4.QtGui import QAction, QIcon, QFileDialog
-from qgis.core import QgsVectorLayer, QgsField, QgsMapLayerRegistry
+from qgis.core import QgsVectorLayer, QgsField, QgsMapLayerRegistry, QgsFeature, QgsGeometry, QgsPoint
 # Initialize Qt resources from file resources.py
 import resources
 # Import the code for the dialog
@@ -246,13 +246,23 @@ class Calculator:
                     min_distance_antenna = antenna
         return min_distance_antenna
 
-    def calculate_rsrp(self, lat_ant, long_ant, height_ant, freq, lat_p, long_p):
+    # area_type
+    # 0 = urban
+    # 1 = sub_urban
+    # 2 = rural
+    def calculate_rsrp(self, lat_ant, long_ant, height_ant, freq, lat_p, long_p, area_type):
         distance = self.distance_between_point(lat_ant, long_ant, lat_p, long_p)
         ah = (1.11*math.log10(freq)-0.7)*1-(1.56*math.log10(freq)-0.8)
         lu = 46.3+(33.9*math.log10(freq))-13.82*math.log10(height_ant)+((44.9-6.55*math.log10(1))*math.log10(distance))
         pl = lu-ah
+
+        if(area_type == 1):
+            pl = pl - 2*math.pow(math.log10(freq/28),2) - 5.4
+        elif(area_type == 2):
+            pl = pl - 4.78*math.pow(math.log10(freq),2) + 18.33*math.log10(freq) - 40.98
+
         rsrp = 18.228787 - pl
-        return distance
+        return rsrp
 
     def distance_between_point(self,lat_ant,long_ant,lat_p,long_p):
         a = math.pow(math.sin(math.fabs(lat_p-lat_ant)*math.pi/180/2),2)+math.cos(lat_ant*math.pi/180)*math.cos(lat_p*math.pi/180)*math.pow(math.sin(math.fabs(long_p-long_ant)*math.pi/180/2),2)
@@ -262,14 +272,27 @@ class Calculator:
 
     def run(self):
         """Run method that performs all the real work"""
+        # เคลียร์combobox
+        self.dlg.comboBox.clear()
+        # นำชื่อไฟล์ไปใส่ comboBox
+        self.dlg.comboBox.addItems(["Urban", "Sub_Urban", "Rural"])
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
+            calculatedLayer = QgsVectorLayer("Point", "Calculated", "memory")
+            pr = calculatedLayer.dataProvider()
+            calculatedLayer.startEditing()
+            pr.addAttributes([QgsField("PDSL-LTE_UE_RSRP", QVariant.Double)])
+
+            features = []
+
             filename_1 = self.dlg.lineEdit.text()
             filename_2 = self.dlg.lineEdit_2.text()
+            area_type = self.dlg.comboBox.currentIndex()
 
             f = open(filename_1, 'rt')
             reader = csv.reader(f)
@@ -289,11 +312,19 @@ class Calculator:
                 else:
                     pci_id = self.get_max_pci(row)
                     if(pci_id != False):
+                        print("FUCK")
                         antenna = self.find_antenna(headers[pci_id], float(row[4]), float(row[3]), antenna_data)
-                        rsrp = self.calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]))
+                        rsrp = self.calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]), area_type)
                         print(rsrp)
+                        feature = QgsFeature()
+                        feature.setGeometry(QgsGeometry.fromPoint(QgsPoint(float(row[3]), float(row[4]))))
+                        feature.setAttributes([rsrp])
+                        features.append(feature)
                 index+=1
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
-            self.calculatedLayer = QgsVectorLayer("Point", "Calculated", "memory")
-            QgsMapLayerRegistry.instance().addMapLayer(self.calculatedLayer)
+
+            pr.addFeatures(features)
+            calculatedLayer.commitChanges()
+            calculatedLayer.updateExtents()
+            QgsMapLayerRegistry.instance().addMapLayer(calculatedLayer)
