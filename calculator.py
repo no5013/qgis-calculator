@@ -20,8 +20,8 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication
-from PyQt4.QtGui import QAction, QIcon
+from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QFileInfo
+from PyQt4.QtGui import QAction, QIcon, QFileDialog
 # Initialize Qt resources from file resources.py
 import resources
 # Import the code for the dialog
@@ -65,6 +65,9 @@ class Calculator:
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'Calculator')
         self.toolbar.setObjectName(u'Calculator')
+
+        #path เริ่มต้น
+        self.path = '/'
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -156,6 +159,10 @@ class Calculator:
 
         self.actions.append(action)
 
+        #เชื่อมปุ่มกับช่องคำสั่งเปิด File browser
+        self.dlg.pushButton.clicked.connect(self.select_output_file)
+        self.dlg.pushButton_2.clicked.connect(self.select_output_file_2)
+
         return action
 
     def initGui(self):
@@ -179,6 +186,31 @@ class Calculator:
         # remove the toolbar
         del self.toolbar
 
+    #คำสั่งเลือกไฟล์
+    def select_output_file(self):
+        #เปิดไฟล์ Browse
+        #ช่องแรกช่างแม่ง ช่องสองชื่อTitle ช่องสามPathเริ่มต้น(ตอนแรกเป็น '/' สร้างไว้ข้างบน) ช่องสี่เลือกสกุลไฟล์
+        #เลือกไฟล์เสร็จเก็บเข้าตัวแปล filenames
+        filename = QFileDialog.getOpenFileName(self.dlg, "Select tab files  ",self.path, '*.csv')
+
+        #เช็คว่ามีไฟล์รึเปล่า
+        if(len(filename) > 0):
+            #save path ก่อนหน้า
+            self.path = QFileInfo(filename).path();
+            self.dlg.lineEdit.setText(filename)
+
+    #คำสั่งเลือกไฟล์
+    def select_output_file_2(self):
+        #เปิดไฟล์ Browse
+        #ช่องแรกช่างแม่ง ช่องสองชื่อTitle ช่องสามPathเริ่มต้น(ตอนแรกเป็น '/' สร้างไว้ข้างบน) ช่องสี่เลือกสกุลไฟล์
+        #เลือกไฟล์เสร็จเก็บเข้าตัวแปล filenames
+        filename = QFileDialog.getOpenFileName(self.dlg, "Select tab files  ",self.path, '*.csv')
+
+        #เช็คว่ามีไฟล์รึเปล่า
+        if(len(filename) > 0):
+            #save path ก่อนหน้า
+            self.path = QFileInfo(filename).path();
+            self.dlg.lineEdit_2.setText(filename)
 
     def run(self):
         """Run method that performs all the real work"""
