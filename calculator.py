@@ -283,6 +283,7 @@ class Calculator:
         result = self.dlg.exec_()
         # See if OK was pressed
         if result:
+            print("Calculating...")
             calculatedLayer = QgsVectorLayer("Point", "Calculated", "memory")
             pr = calculatedLayer.dataProvider()
             calculatedLayer.startEditing()
@@ -312,10 +313,8 @@ class Calculator:
                 else:
                     pci_id = self.get_max_pci(row)
                     if(pci_id != False):
-                        print("FUCK")
                         antenna = self.find_antenna(headers[pci_id], float(row[4]), float(row[3]), antenna_data)
                         rsrp = self.calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]), area_type)
-                        print(rsrp)
                         feature = QgsFeature()
                         feature.setGeometry(QgsGeometry.fromPoint(QgsPoint(float(row[3]), float(row[4]))))
                         feature.setAttributes([rsrp])
@@ -328,3 +327,4 @@ class Calculator:
             calculatedLayer.commitChanges()
             calculatedLayer.updateExtents()
             QgsMapLayerRegistry.instance().addMapLayer(calculatedLayer)
+            print("Finished!")
