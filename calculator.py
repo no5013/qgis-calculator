@@ -188,7 +188,7 @@ class Calculator:
         # remove the toolbar
         del self.toolbar
 
-    #คำสั่งเลือกไฟล์
+    #คำสั่งเลือกไฟล์สำหรับ site data
     def select_output_file(self):
         #เปิดไฟล์ Browse
         #ช่องแรกช่างแม่ง ช่องสองชื่อTitle ช่องสามPathเริ่มต้น(ตอนแรกเป็น '/' สร้างไว้ข้างบน) ช่องสี่เลือกสกุลไฟล์
@@ -201,7 +201,7 @@ class Calculator:
             self.path = QFileInfo(filename).path();
             self.dlg.lineEdit.setText(filename)
 
-    #คำสั่งเลือกไฟล์
+    #คำสั่งเลือกไฟล์สำหรับ workbook
     def select_output_file_2(self):
         #เปิดไฟล์ Browse
         #ช่องแรกช่างแม่ง ช่องสองชื่อTitle ช่องสามPathเริ่มต้น(ตอนแรกเป็น '/' สร้างไว้ข้างบน) ช่องสี่เลือกสกุลไฟล์
@@ -214,20 +214,25 @@ class Calculator:
             self.path = QFileInfo(filename).path();
             self.dlg.lineEdit_2.setText(filename)
 
+    # หาช่อง pci ที่มีค่ามากที่สุด
     def get_max_pci(self, row):
+        # เช็คว่ามีค่า lat long หรือเปล่า ถ้าไม่มีส่ง False
         if(row[3] != "" and row[4] != ""):
             max = None
             max_id = None
+            # วนลูปหาสัญญาณค่ามากสุด
             for i in range(5, len(row)):
                 if(row[i] != ""):
                     if((max is None) or (int(row[i]) > int(max))):
                         max = row[i]
                         max_id = i
+            # ถ้าใน message นั้นมีค่าสัญญาณซัก pci ส่งเลขช่อง pci ที่มีค่ามากที่สุดกลับไป
             if(max != None):
                 return max_id
 
         return False
 
+    # แก้ชื่อ column pci ใน workbook จาก
     def format_pci_header(self, headers):
         format_headers = headers
         for i in range(5, len(headers)):
@@ -235,6 +240,10 @@ class Calculator:
             format_headers[i] = splited[len(splited)-1]
         return format_headers
 
+    # หาเสาสัญญาณที่ใกล้จากจุดที่สุด ค่าที่ต้องใส่คือ
+    # pci: เลข pci
+    # lat_p, long_p: ไว้หาเสาร์สัญญาณที่ห่างจากจุดน้อยที่สุด
+    # antenna_list: list ของเสาสัญญาณทั้งหมด
     def find_antenna(self, pci_id, lat_p, long_p, antenna_list):
         min_distance = None
         min_distance_antenna = None
@@ -246,6 +255,7 @@ class Calculator:
                     min_distance_antenna = antenna
         return min_distance_antenna
 
+    # สูตรหาค่า rsrp
     # area_type
     # 0 = urban
     # 1 = sub_urban
@@ -256,6 +266,7 @@ class Calculator:
         lu = 46.3+(33.9*math.log10(freq))-13.82*math.log10(height_ant)+((44.9-6.55*math.log10(1))*math.log10(distance))
         pl = lu-ah
 
+        # ถ้าเป็น sub_urban หรือ rural ให้ลบค่าเพิ่ม
         if(area_type == 1):
             pl = pl - 2*math.pow(math.log10(freq/28),2) - 5.4
         elif(area_type == 2):
@@ -264,6 +275,7 @@ class Calculator:
         rsrp = 18.228787 - pl
         return rsrp
 
+    # หาจุดระหว่าง2จุดของ lat และ long
     def distance_between_point(self,lat_ant,long_ant,lat_p,long_p):
         a = math.pow(math.sin(math.fabs(lat_p-lat_ant)*math.pi/180/2),2)+math.cos(lat_ant*math.pi/180)*math.cos(lat_p*math.pi/180)*math.pow(math.sin(math.fabs(long_p-long_ant)*math.pi/180/2),2)
         c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
@@ -284,47 +296,75 @@ class Calculator:
         # See if OK was pressed
         if result:
             print("Calculating...")
+            # สร้าง layer เปล่ามา
             calculatedLayer = QgsVectorLayer("Point", "Calculated", "memory")
             pr = calculatedLayer.dataProvider()
             calculatedLayer.startEditing()
+            # เพิ่ม column PDSL-LTE_UE_RSRP ที่มีค่าเป็นตัวเลข(double คือเลขทศนิยม)
             pr.addAttributes([QgsField("PDSL-LTE_UE_RSRP", QVariant.Double)])
 
-            features = []
-
-            filename_1 = self.dlg.lineEdit.text()
-            filename_2 = self.dlg.lineEdit_2.text()
+            # ดึง path site data มา
+            site_data_file = self.dlg.lineEdit.text()
+            # ดึง path workbook มา
+            workbook_file = self.dlg.lineEdit_2.text()
+            # ดูว่าค่าเป็นพื้นที่ประเภทไหน
             area_type = self.dlg.comboBox.currentIndex()
 
-            f = open(filename_1, 'rt')
-            reader = csv.reader(f)
-            antenna_data = []
-            index = 0
-            for row in reader:
-                antenna_data.append(row)
-                index+=1
+            # เช็คว่าไฟล์ไม่ว่างเปล่า
+            if site_data_file!="" and workbook_file!="":
+                # เปิดไฟล์ site data ขึ้นมา
+                f = open(site_data_file, 'rt')
+                reader = csv.reader(f)
+                # ประกาศตัวแปรว่างเปล่า ไว้เก็บข้อมูลเสา
+                antenna_data = []
+                # นำข้อมูลที่อยู่ใน csv ในแต่ละแถว(row) มาใส่ตัวแปร antenna_data ที่เราประกาศเอาไว้ข้างบน
+                for row in reader:
+                    antenna_data.append(row)
 
-            f = open(filename_2, 'rt')
-            reader = csv.reader(f)
-            index = 0
-            headers = []
-            for row in reader:
-                if(index == 0):
-                    headers = self.format_pci_header(row)
-                else:
-                    pci_id = self.get_max_pci(row)
-                    if(pci_id != False):
-                        antenna = self.find_antenna(headers[pci_id], float(row[4]), float(row[3]), antenna_data)
-                        rsrp = self.calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]), area_type)
-                        feature = QgsFeature()
-                        feature.setGeometry(QgsGeometry.fromPoint(QgsPoint(float(row[3]), float(row[4]))))
-                        feature.setAttributes([rsrp])
-                        features.append(feature)
-                index+=1
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
+                # เปิดไฟล์ workbook ขึ้นมา
+                f = open(workbook_file, 'rt')
+                reader = csv.reader(f)
 
-            pr.addFeatures(features)
-            calculatedLayer.commitChanges()
-            calculatedLayer.updateExtents()
-            QgsMapLayerRegistry.instance().addMapLayer(calculatedLayer)
-            print("Finished!")
+                # ประกาศตัวแปรว่างเปล่า ที่จะไว้เก็บชื่อ column
+                headers = []
+                # ประกาศตัวแปรว่างเปล่า ที่จะไว้เพิ่มจุดที่จะปรากฏบน layer
+                features = []
+                # ประกาศตัวแปร index ไว้เพื่อนับจำนวนแถวของข้อมูล เพื่อเช็คว่าถ้าข้อมูลแถวที่ 0 แถวนั้นคือชื่อหัวตารางนั่นเอง
+                index = 0
+                for row in reader:
+                    # ถ้าเป็นข้อมูลแถวที่ 0
+                    if(index == 0):
+                        # นำชื่อหัวตารางไปแปลงแล้วนำมาใส่ตัวแปร header ที่ประกาศไว้ข้างบน
+                        headers = self.format_pci_header(row)
+                    else:
+                        # นำข้อมูลในแถวไปหาเลขช่องที่มีค่า
+                        pci_id = self.get_max_pci(row)
+                        # ถ้าข้อมูลในแถวมี lat long และมีค่าใน pci ซัก pci นึง
+                        if(pci_id != False):
+                            # ไปหาข้อมูลเสา
+                            antenna = self.find_antenna(headers[pci_id], float(row[4]), float(row[3]), antenna_data)
+                            # คำนวณ rsrp
+                            rsrp = self.calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]), area_type)
+                            # สร้างจุดว่างเปล่าขึ้นมา
+                            feature = QgsFeature()
+                            # ใส่ค่า X Y ให้จุด
+                            feature.setGeometry(QgsGeometry.fromPoint(QgsPoint(float(row[3]), float(row[4]))))
+                            # ใส่ค่า rsrp ที่เราคำนวณไว้ให้จุด
+                            feature.setAttributes([rsrp])
+                            # นำจุดที่เราสร้างไว้ข้างบนไปใส่ตัวแปรที่เราประกาศไว้ข้างบน เพื่อที่จะรอเพิ่มใส่ใน layer ที่เดียว
+                            features.append(feature)
+                    # ไว้บอกเฉยๆว่าเราวนลูปไปกี่รอบแล้ว
+                    index+=1
+
+                # พอเราคำนวณครบทุกจุดแล้ว เราก็เอาจุดที่เราสร้างมา Add ใส่ layer ที่เดียว
+                pr.addFeatures(features)
+
+                # บอก layer ว่าเราเพิ่งเพิ่มจุดไป อัพเดทตัวเองด้วย
+                calculatedLayer.commitChanges()
+                calculatedLayer.updateExtents()
+
+                # Add layer ที่เราเพิ่งสร้างไปในโปรแกรม qgis
+                QgsMapLayerRegistry.instance().addMapLayer(calculatedLayer)
+                print("Finished!")
+            else:
+                print("Please browse files!!!")
