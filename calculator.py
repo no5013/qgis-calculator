@@ -253,7 +253,13 @@ class Calculator:
                 if(min_distance is None or distance < min_distance):
                     min_distance = distance
                     min_distance_antenna = antenna
-        return min_distance_antenna
+
+        if min_distance_antenna != None:
+            return min_distance_antenna
+        else:
+            error_text = 'Cannot find antenna with pci' + pci_id + ' in the site_data'
+            print(error_text)
+            raise ValueError(error_text)
 
     # สูตรหาค่า rsrp
     # area_type
@@ -344,6 +350,8 @@ class Calculator:
                             # ไปหาข้อมูลเสา
                             antenna = self.find_antenna(headers[pci_id], float(row[4]), float(row[3]), antenna_data)
                             # คำนวณ rsrp
+                            print(headers[pci_id])
+                            print(antenna)
                             rsrp = self.calculate_rsrp(float(antenna[2]), float(antenna[1]), float(antenna[3]), float(antenna[6]), float(row[4]), float(row[3]), area_type)
                             # สร้างจุดว่างเปล่าขึ้นมา
                             feature = QgsFeature()
